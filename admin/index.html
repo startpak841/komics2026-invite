@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>KOMICS USA 2026 - Admin Dashboard</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 1400px; margin: 0 auto; padding: 20px; background: #f3f4f6; }
+  h1 { color: #111; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .sCard { padding: 20px; border-radius: 12px; text-align: center; }
+  .sCard .label { font-size: 13px; color: #666; margin-bottom: 4px; }
+  .sCard .value { font-size: 32px; font-weight: bold; color: #111; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 2px solid #e5e7eb; }
+  .tab { padding: 10px 18px; background: transparent; border: none; cursor: pointer; font-size: 14px; color: #666; }
+  .tab.active { background: #3b82f6; color: #fff; border-radius: 8px 8px 0 0; font-weight: bold; }
+  .tableWrap { overflow-x: auto; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+  th { background: #f9fafb; font-weight: 600; font-size: 13px; color: #374151; }
+  tr:hover { background: #f9fafb; }
+  .badge { padding: 4px 10px; border-radius: 12px; color: #fff; font-size: 11px; font-weight: bold; }
+  .btn { padding: 8px 16px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; cursor: pointer; font-size: 14px; margin-left: 8px; }
+  .btn:hover { background: #f3f4f6; }
+  .btn-primary { background: #3b82f6; color: white; border-color: #3b82f6; }
+  .btn-success { background: #16a34a; color: white; border-color: #16a34a; }
+  .smallBtn { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; cursor: pointer; font-size: 12px; }
+  .form { background: #fff; padding: 20px; border-radius: 12px; margin-bottom: 24px; display: grid; gap: 8px; }
+  .form input { padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
+  .form .row { display: flex; gap: 8px; }
+  .lock { display: flex; justify-content: center; align-items: center; min-height: 80vh; }
+  .lock .card { background: #fff; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  textarea { width: 100%; min-height: 120px; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-family: monospace; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="lockScreen" class="lock" style="display:none;">
+  <div class="card">
+    <h2>🔒 관리자 인증 필요</h2>
+    <p>URL에 <code>?key=관리자키</code>를 추가해주세요.</p>
+    <p style="font-size:12px;color:#999;">예: /admin?key=xxxx</p>
+  </div>
+</div>
+
+<div id="dashboard" style="display:none;">
+  <div class="header">
+    <h1>📊 KOMICS USA 2026 Dashboard</h1>
+    <div>
+      <button class="btn" onclick="refresh()">🔄 새로고침</button>
+      <button class="btn btn-primary" onclick="exportCSV()">📥 CSV 내보내기</button>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="sCard" style="background:#dbeafe;"><div class="label">총 페이지뷰</div><div class="value" id="totalViews">0</div></div>
+    <div class="sCard" style="background:#fce7f3;"><div class="label">IP Library 클릭</div><div class="value" id="totalIP">0</div></div>
+    <div class="sCard" style="background:#dcfce7;"><div class="label">RSVP 클릭</div><div class="value" id="totalRSVP">0</div></div>
+    <div class="sCard" style="background:#fef3c7;"><div class="label">등록 회사 수</div><div class="value" id="totalCompanies">0</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="stats" onclick="switchTab('stats')">📈 회사별 통계</button>
+    <button class="tab" data-tab="logs" onclick="switchTab('logs')">📜 실시간 로그</button>
+    <button class="tab" data-tab="companies" onclick="switchTab('companies')">🏢 회사 관리</button>
+    <button class="tab" data-tab="generate" onclick="switchTab('generate')">🔗 URL 일괄 발급</button>
+  </div>
+
+  <!-- 회사별 통계 -->
+  <div id="tab-stats" class="tabContent">
+    <div class="tableWrap">
+      <table>
+        <thead><tr><th>회사명</th><th>국가</th><th>이메일</th><th style="text-align:center">👁️ Views</th><th style="text-align:center">📚 IP</th><th style="text-align:center">📅 RSVP</th><th>최근 활동</th><th>URL</th></tr></thead>
+        <tbody id="statsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 실시간 로그 -->
+  <div id="tab-logs" class="tabContent" style="display:none;">
+    <div class="tableWrap">
+      <table>
+        <thead><tr><th>시간</th><th>이벤트</th><th>회사명</th><th>토큰</th></tr></thead>
+        <tbody id="logsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 회사 관리 -->
+  <div id="tab-companies" class="tabContent" style="display:none;">
+    <form class="form" onsubmit="addCompany(event)">
+      <h3 style="margin-top:0;">➕ 신규 회사 추가</h3>
+      <div class="row">
+        <input id="f-token" placeholder="토큰 (필수)" style="flex:1;" required>
+        <button type="button" class="btn" onclick="genToken()">🎲 자동생성</button>
+      </div>
+      <input id="f-name" placeholder="회사명 (필수) *" required>
+      <input id="f-email" placeholder="이메일">
+      <input id="f-country" placeholder="국가">
+      <input id="f-notes" placeholder="메모">
+      <button type="submit" class="btn btn-success">회사 추가</button>
+    </form>
+
+    <h3>📋 등록된 회사</h3>
+    <div class="tableWrap">
+      <table>
+        <thead><tr><th>회사명</th><th>토큰</th><th>이메일</th><th>국가</th><th>등록일</th><th>URL</th></tr></thead>
+        <tbody id="companiesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- URL 일괄 발급 -->
+  <div id="tab-generate" class="tabContent" style="display:none;">
+    <div class="form">
+      <h3 style="margin-top:0;">🔗 URL 일괄 발급</h3>
+      <p style="color:#666;font-size:13px;margin:0;">
+        한 줄에 한 회사씩 입력 (회사명, 이메일, 국가 - 쉼표로 구분)
+      </p>
+      <textarea id="bulkInput" placeholder="Marvel Entertainment, contact@marvel.com, USA
+DC Comics, info@dc.com, USA
+Shueisha, hello@shueisha.co.jp, Japan"></textarea>
+      <div>
+        <button class="btn btn-primary" onclick="bulkGenerate()">🚀 일괄 생성 + DB 저장</button>
+      </div>
+      <div id="bulkResult"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../config.js"></script>
+<script>
+let stats = [], logs = [], companies = [];
+
+// 인증
+function checkAuth() {
+  const key = new URLSearchParams(location.search).get('key');
+  if (key === ADMIN_KEY) {
+    document.getElementById('dashboard').style.display = 'block';
+    refresh();
+  } else {
+    document.getElementById('lockScreen').style.display = 'flex';
+  }
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[data-tab="${name}"]`).classList.add('active');
+  document.querySelectorAll('.tabContent').forEach(c => c.style.display = 'none');
+  document.getElementById(`tab-${name}`).style.display = 'block';
+}
+
+async function refresh() {
+  const [s, l, c] = await Promise.all([
+    sb.from('komics_stats_by_company').select('*'),
+    sb.from('komics_click_logs').select('*').order('created_at', { ascending: false }).limit(100),
+    sb.from('komics_companies').select('*').order('created_at', { ascending: false })
+  ]);
+  stats = s.data || []; logs = l.data || []; companies = c.data || [];
+  renderStats(); renderLogs(); renderCompanies(); renderSummary();
+}
+
+function renderSummary() {
+  document.getElementById('totalViews').textContent = stats.reduce((a, b) => a + Number(b.page_views || 0), 0);
+  document.getElementById('totalIP').textContent = stats.reduce((a, b) => a + Number(b.ip_library_clicks || 0), 0);
+  document.getElementById('totalRSVP').textContent = stats.reduce((a, b) => a + Number(b.rsvp_clicks || 0), 0);
+  document.getElementById('totalCompanies').textContent = companies.length;
+}
+
+function renderStats() {
+  document.getElementById('statsBody').innerHTML = stats.map(r => `
+    <tr>
+      <td><strong>${r.company_name || '-'}</strong></td>
+      <td>${r.country || '-'}</td>
+      <td>${r.contact_email || '-'}</td>
+      <td style="text-align:center">${r.page_views || 0}</td>
+      <td style="text-align:center;color:${r.ip_library_clicks > 0 ? '#ec4899' : '#999'}">${r.ip_library_clicks || 0}</td>
+      <td style="text-align:center;color:${r.rsvp_clicks > 0 ? '#16a34a' : '#999'};font-weight:${r.rsvp_clicks > 0 ? 'bold' : 'normal'}">${r.rsvp_clicks || 0}</td>
+      <td style="font-size:12px">${r.last_activity ? new Date(r.last_activity).toLocaleString('ko-KR') : '-'}</td>
+      <td><button class="smallBtn" onclick="copyURL('${r.token}')">📋</button></td>
+    </tr>
+  `).join('');
+}
+
+function renderLogs() {
+  const colors = { rsvp: '#16a34a', ip_library: '#ec4899', page_view: '#3b82f6' };
+  document.getElementById('logsBody').innerHTML = logs.map(l => `
+    <tr>
+      <td style="font-size:12px">${new Date(l.created_at).toLocaleString('ko-KR')}</td>
+      <td><span class="badge" style="background:${colors[l.event_type] || '#666'}">${l.event_type}</span></td>
+      <td>${l.company_name || '<em style="color:#999">(unknown)</em>'}</td>
+      <td style="font-family:monospace;font-size:12px">${l.token || '-'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderCompanies() {
+  document.getElementById('companiesBody').innerHTML = companies.map(c => `
+    <tr>
+      <td><strong>${c.company_name}</strong></td>
+      <td style="font-family:monospace;font-size:12px">${c.token}</td>
+      <td>${c.contact_email || '-'}</td>
+      <td>${c.country || '-'}</td>
+      <td style="font-size:12px">${new Date(c.created_at).toLocaleDateString('ko-KR')}</td>
+      <td><button class="smallBtn" onclick="copyURL('${c.token}')">📋 복사</button></td>
+    </tr>
+  `).join('');
+}
+
+function copyURL(token) {
+  const url = `${location.origin}/?t=${token}`;
+  navigator.clipboard.writeText(url);
+  alert('📋 복사됨!\n' + url);
+}
+
+function genToken() {
+  document.getElementById('f-token').value = 'k26-' + Math.random().toString(36).substring(2, 10);
+}
+
+async function addCompany(e) {
+  e.preventDefault();
+  const payload = {
+    token: document.getElementById('f-token').value,
+    company_name: document.getElementById('f-name').value,
+    contact_email: document.getElementById('f-email').value || null,
+    country: document.getElementById('f-country').value || null,
+    notes: document.getElementById('f-notes').value || null
+  };
+  const { error } = await sb.from('komics_companies').insert(payload);
+  if (error) return alert('❌ ' + error.message);
+  alert('✅ 추가 완료!');
+  document.querySelector('.form').reset();
+  refresh();
+}
+
+async function bulkGenerate() {
+  const input = document.getElementById('bulkInput').value.trim();
+  if (!input) return alert('회사 목록을 입력하세요!');
+  const lines = input.split('\n').filter(l => l.trim());
+  const rows = lines.map(line => {
+    const [name, email, country] = line.split(',').map(p => (p || '').trim());
+    return { token: 'k26-' + Math.random().toString(36).substring(2, 10), company_name: name, contact_email: email || null, country: country || null };
+  });
+  const { error } = await sb.from('komics_companies').insert(rows);
+  if (error) return alert('❌ ' + error.message);
+
+  const html = rows.map(r => `
+    <tr>
+      <td><strong>${r.company_name}</strong></td>
+      <td>${r.contact_email || '-'}</td>
+      <td>${r.country || '-'}</td>
+      <td style="font-family:monospace;font-size:11px">${r.token}</td>
+      <td style="font-family:monospace;font-size:11px;color:#2563eb">${location.origin}/?t=${r.token}</td>
+      <td><button class="smallBtn" onclick="copyURL('${r.token}')">📋</button></td>
+    </tr>
+  `).join('');
+  document.getElementById('bulkResult').innerHTML = `
+    <h4>✅ ${rows.length}개 생성 완료!</h4>
+    <div class="tableWrap"><table>
+      <thead><tr><th>회사명</th><th>이메일</th><th>국가</th><th>토큰</th><th>초대 URL</th><th>복사</th></tr></thead>
+      <tbody>${html}</tbody>
+    </table></div>
+  `;
+  refresh();
+}
+
+function exportCSV() {
+  const headers = ['회사명','국가','이메일','토큰','Views','IP클릭','RSVP클릭','최근활동'];
+  const rows = stats.map(s => [s.company_name||'', s.country||'', s.contact_email||'', s.token||'', s.page_views||0, s.ip_library_clicks||0, s.rsvp_clicks||0, s.last_activity ? new Date(s.last_activity).toLocaleString('ko-KR') : '']);
+  const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `komics_stats_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+checkAuth();
+</script>
+</body>
+</html>
